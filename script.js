@@ -1,149 +1,291 @@
-// --- helpers ---
-const $ = id => document.getElementById(id);
-const today = new Date().toISOString().split('T')[0];
+// ---------- helpers & storage ----------
+const $ = (id) => document.getElementById(id);
+const todayStr = () => new Date().toISOString().split('T')[0];
 
-// --- localStorage ---
 function loadConfig() {
-  return JSON.parse(localStorage.getItem('config') || '{"categories":["Work (client)","Work (personal)","Exercise","Reading","TV"]}');
+  return JSON.parse(
+    localStorage.getItem("config") ||
+      '{"categories":["Work (client)","Work (personal)","Exercise","Reading","TV"]}'
+  );
 }
-function saveConfig(c) { localStorage.setItem('config', JSON.stringify(c)); }
-function loadLogs() { return JSON.parse(localStorage.getItem('timeLog') || '[]'); }
-function saveLogs(l) { localStorage.setItem('timeLog', JSON.stringify(l)); }
-
-// --- tab navigation ---
-const tabs = document.querySelectorAll('.tab');
-const buttons = document.querySelectorAll('nav button');
-function switchTab(name) {
-  tabs.forEach(t => t.classList.add('hidden'));
-  buttons.forEach(b => b.classList.remove('active'));
-  $(name).classList.remove('hidden');
-  document.querySelector(`button[data-tab="${name}"]`).classList.add('active');
-  if (name === 'log') renderLogInputs();
+function saveConfig(c) {
+  localStorage.setItem("config", JSON.stringify(c));
 }
-buttons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-switchTab('log'); // default landing tab
+function loadLogs() {
+  return JSON.parse(localStorage.getItem("timeLog") || "[]");
+}
+function saveLogs(l) {
+  localStorage.setItem("timeLog", JSON.stringify(l));
+}
 
-// --- Config tab ---
+// ---------- cloud sync ----------
+async function pushToCloud(entry) {
+  try {
+    await fetch("/.netlify/functions/pushEntry", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+  } catch (err) {
+    console.warn("Cloud push failed:", err);
+  }
+}
+
+async function fetchFromCloud() {
+  try {
+    const res = await fetch("/.netlify/functions/fetchLogs");
+    const data = await res.json();
+    if (Array.isArray(data)) saveLogs(data);
+    return data;
+  } catch (err) {
+    console.warn("Cloud fetch failed:", err);
+    return loadLogs();
+  }
+}
+
+// ---------- app state ----------
 let config = loadConfig();
+let chartRef = null;
+
+// ---------- tabs ----------
+const sections = document.querySelectorAll("section.card");
+const tabBtns = document.querySelectorAll(".tabbtn");
+
+function switchTab(name) {
+  sections.forEach((s) => s.classList.add("hidden"));
+  tabBtns.forEach((b) => b.classList.remove("active"));
+  $(name).classList.remove("hidden");
+  document.querySelector(`.tabbtn[data-tab="${name}"]`).classList.add("active");
+
+  if (name === "log") renderLogInputs();
+  if (name === "history") renderHistory();
+  if (name === "viz") renderChart();
+}
+
+tabBtns.forEach((btn) =>
+  btn.addEventListener("click", () => switchTab(btn.dataset.tab))
+);
+$("entryDate").value = todayStr();
+switchTab("log"); // default landing tab
+
+// ---------- CONFIG ----------
 function renderConfig() {
-  const list = $('categoryList');
-  list.innerHTML = '';
+  const ul = $("categoryList");
+  ul.innerHTML = "";
   config.categories.forEach((cat, i) => {
-    const li = document.createElement('li');
-    li.textContent = cat;
-    const remove = document.createElement('button');
-    remove.textContent = 'x';
-    remove.style.marginLeft = '1em';
-    remove.onclick = () => { config.categories.splice(i, 1); renderConfig(); };
-    li.appendChild(remove);
-    list.appendChild(li);
+    const li = document.createElement("li");
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.value = cat;
+    inp.oninput = (e) => {
+      config.categories[i] = e.target.value;
+    };
+
+    const up = document.createElement("button");
+    up.textContent = "↑";
+    up.className = "iconbtn";
+    up.onclick = () => {
+      if (i > 0) {
+        [config.categories[i - 1], config.categories[i]] = [
+          config.categories[i],
+          config.categories[i - 1],
+        ];
+        renderConfig();
+      }
+    };
+
+    const down = document.createElement("button");
+    down.textContent = "↓";
+    down.className = "iconbtn";
+    down.onclick = () => {
+      if (i < config.categories.length - 1) {
+        [config.categories[i + 1], config.categories[i]] = [
+          config.categories[i],
+          config.categories[i + 1],
+        ];
+        renderConfig();
+      }
+    };
+
+    const del = document.createElement("button");
+    del.textContent = "✕";
+    del.className = "iconbtn";
+    del.onclick = () => {
+      config.categories.splice(i, 1);
+      renderConfig();
+    };
+
+    li.appendChild(inp);
+    li.appendChild(up);
+    li.appendChild(down);
+    li.appendChild(del);
+    ul.appendChild(li);
   });
 }
 renderConfig();
 
-$('addCategory').onclick = () => {
-  const val = $('newCategory').value.trim();
-  if (val) {
-    config.categories.push(val);
-    $('newCategory').value = '';
-    renderConfig();
-  }
+$("addCategory").onclick = () => {
+  const v = $("newCategory").value.trim();
+  if (!v) return;
+  config.categories.push(v);
+  $("newCategory").value = "";
+  renderConfig();
 };
-$('saveConfig').onclick = () => { saveConfig(config); alert('Config saved!'); };
+$("saveConfig").onclick = () => {
+  config.categories = config.categories.map((c) => c.trim()).filter(Boolean);
+  saveConfig(config);
+  if (!$("log").classList.contains("hidden")) renderLogInputs();
+  toast("Config saved ✓");
+};
 
-// --- Log tab ---
+// ---------- LOG ----------
 function renderLogInputs() {
-  const container = $('logInputs');
-  container.innerHTML = '';
-  config.categories.forEach(cat => {
-    const div = document.createElement('div');
-    div.innerHTML = `<label>${cat}: <input type="number" id="hours_${cat}" min="0" step="0.25" class="hourInput" /></label>`;
-    container.appendChild(div);
+  const wrap = $("logInputs");
+  wrap.innerHTML = "";
+  config.categories.forEach((cat) => {
+    const row = document.createElement("div");
+    row.className = "row";
+    const label = document.createElement("label");
+    label.style.width = "100%";
+    label.innerHTML = `<div class="muted" style="margin-bottom:4px">${cat}</div>`;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "0.25";
+    input.placeholder = "Hours";
+    input.className = "hourInput";
+    input.dataset.label = cat;
+    input.addEventListener("input", updateDailyTotal);
+    label.appendChild(input);
+    row.appendChild(label);
+    wrap.appendChild(row);
   });
-  addLiveTotalListener();
+  updateDailyTotal();
 }
 
-function addLiveTotalListener() {
-  const updateTotal = () => {
-    let total = 0;
-    document.querySelectorAll('.hourInput').forEach(inp => total += parseFloat(inp.value) || 0);
-    total += parseFloat($('customHours').value) || 0;
-    $('dailyTotal').textContent = `Total: ${total.toFixed(2)}h`;
-  };
-  document.querySelectorAll('.hourInput').forEach(inp => inp.addEventListener('input', updateTotal));
-  $('customHours').addEventListener('input', updateTotal);
-  $('customLabel').addEventListener('input', updateTotal);
+function updateDailyTotal() {
+  let total = 0;
+  document
+    .querySelectorAll(".hourInput")
+    .forEach((inp) => (total += parseFloat(inp.value) || 0));
+  total += parseFloat($("customHours").value) || 0;
+  $("dailyTotal").textContent = `Total: ${total.toFixed(2)}h`;
 }
+$("customHours").addEventListener("input", updateDailyTotal);
+$("customLabel").addEventListener("input", updateDailyTotal);
 
-$('submitDay').onclick = () => {
+$("submitDay").onclick = async () => {
+  const date = $("entryDate").value || todayStr();
   const entries = [];
-  config.categories.forEach(cat => {
-    const val = parseFloat($(`hours_${cat}`)?.value || 0);
-    if (val > 0) entries.push({ label: cat, hours: val });
-  });
-  const customLabel = $('customLabel').value.trim();
-  const customHours = parseFloat($('customHours').value);
-  if (customLabel && customHours > 0) entries.push({ label: customLabel, hours: customHours });
 
-  const logs = loadLogs();
-  logs.push({ date: today, entries });
+  document.querySelectorAll(".hourInput").forEach((inp) => {
+    const val = parseFloat(inp.value);
+    if (val && val > 0) {
+      entries.push({ label: inp.dataset.label, hours: val });
+    }
+  });
+
+  const cLabel = $("customLabel").value.trim();
+  const cHours = parseFloat($("customHours").value);
+  if (cLabel && cHours && cHours > 0) {
+    entries.push({ label: cLabel, hours: cHours });
+  }
+
+  const logs = loadLogs().filter((l) => l.date !== date);
+  logs.push({ date, entries });
+  logs.sort((a, b) => a.date.localeCompare(b.date));
   saveLogs(logs);
-  alert('Day saved!');
-  $('customLabel').value = '';
-  $('customHours').value = '';
-  renderLogInputs();
+
+  await pushToCloud({ date, entries }); // sync to Mongo
+  document.querySelectorAll(".hourInput").forEach((inp) => (inp.value = ""));
+  $("customLabel").value = "";
+  $("customHours").value = "";
+  updateDailyTotal();
+  toast("Saved ✓");
 };
 
-// --- History tab ---
-$('refreshHistory').onclick = renderHistory;
-function renderHistory() {
-  const logs = loadLogs();
-  $('historyOutput').textContent = JSON.stringify(logs, null, 2);
+function toast(text) {
+  const t = $("saveToast");
+  t.textContent = text;
+  t.classList.remove("hidden");
+  setTimeout(() => t.classList.add("hidden"), 1400);
 }
 
-// --- Viz tab ---
-$('refreshViz').onclick = () => renderChart();
+// ---------- HISTORY ----------
+function renderHistory() {
+  $("historyOutput").textContent = JSON.stringify(loadLogs(), null, 2);
+}
+$("refreshHistory").onclick = renderHistory;
+
+// ---------- VIZ ----------
+$("refreshViz").onclick = () => renderChart();
+document
+  .querySelectorAll('input[name="vizMode"]')
+  .forEach((r) => r.addEventListener("change", renderChart));
 
 function renderChart() {
   const logs = loadLogs();
-  const ctx = $('chart').getContext('2d');
+  const ctx = $("chart").getContext("2d");
   const mode = document.querySelector('input[name="vizMode"]:checked').value;
 
-  let data;
-  if (mode === 'total') {
-    data = {
-      labels: logs.map(l => l.date),
-      datasets: [{
-        label: 'Total Hours',
-        data: logs.map(l => l.entries.reduce((a, e) => a + e.hours, 0)),
-        backgroundColor: '#0077ff'
-      }]
-    };
-  } else {
-    // by category
-    const cats = [...new Set(logs.flatMap(l => l.entries.map(e => e.label)))];
-    const grouped = cats.map(cat => logs.map(l => {
-      const e = l.entries.find(e => e.label === cat);
-      return e ? e.hours : 0;
-    }));
-    data = {
-      labels: logs.map(l => l.date),
-      datasets: cats.map((cat, i) => ({
-        label: cat,
-        data: grouped[i],
-        backgroundColor: `hsl(${i * 50 % 360}, 70%, 60%)`
-      }))
-    };
+  if (chartRef) {
+    chartRef.destroy();
+    chartRef = null;
   }
 
-  if (window._chart) window._chart.destroy();
-  window._chart = new Chart(ctx, {
-    type: 'bar',
-    data,
+  if (mode === "total") {
+    const labels = logs.map((l) => l.date);
+    const totals = logs.map((l) =>
+      l.entries.reduce((a, e) => a + (e.hours || 0), 0)
+    );
+    chartRef = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Total Hours",
+            data: totals,
+            backgroundColor: "#4f8cff",
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        scales: { y: { beginAtZero: true } },
+        plugins: { legend: { display: false } },
+      },
+    });
+    return;
+  }
+
+  // by category (stacked)
+  const allCats = [
+    ...new Set(logs.flatMap((l) => l.entries.map((e) => e.label))),
+  ];
+  const labels = logs.map((l) => l.date);
+  const colors = (i) => `hsl(${(i * 47) % 360} 70% 60%)`;
+  const datasets = allCats.map((cat, i) => {
+    const data = logs.map((l) => {
+      const e = l.entries.find((e) => e.label === cat);
+      return e ? e.hours : 0;
+    });
+    return { label: cat, data, backgroundColor: colors(i), stack: "stack1" };
+  });
+
+  chartRef = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets },
     options: {
       responsive: true,
-      scales: { y: { beginAtZero: true } },
-      plugins: { legend: { position: 'bottom' } }
-    }
+      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+      plugins: { legend: { position: "bottom" } },
+    },
   });
 }
+
+// ---------- initial sync ----------
+window.addEventListener("DOMContentLoaded", async () => {
+  const cloudLogs = await fetchFromCloud();
+  console.log("Synced", cloudLogs?.length || 0, "entries from cloud");
+});

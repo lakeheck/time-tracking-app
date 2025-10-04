@@ -2,58 +2,99 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Time Tracker</title>
-  <link rel="stylesheet" href="style.css" />
+
+  <!-- Modern font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+  <link rel="stylesheet" href="style.css"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <div id="app">
-    <nav>
-      <button data-tab="config">⚙️ Config</button>
-      <button data-tab="log">🕒 Log</button>
-      <button data-tab="history">📜 History</button>
-      <button data-tab="viz">📈 Viz</button>
+    <nav class="topnav">
+      <div class="brand">⏱️ Time Tracker</div>
+      <div class="tabs">
+        <button class="tabbtn" data-tab="log">🕒 Log</button>
+        <button class="tabbtn" data-tab="history">📜 History</button>
+        <button class="tabbtn" data-tab="viz">📈 Viz</button>
+        <button class="tabbtn" data-tab="config">⚙️ Config</button>
+      </div>
     </nav>
 
-    <!-- Config Tab -->
-    <section id="config" class="tab hidden">
-      <h2>Default Categories</h2>
-      <ul id="categoryList"></ul>
-      <input id="newCategory" placeholder="Add new category" />
-      <button id="addCategory">Add</button>
-      <button id="saveConfig">Save Config</button>
-    </section>
-
-    <!-- Log Tab -->
-    <section id="log" class="tab">
+    <!-- LOG -->
+    <section id="log" class="card">
       <h2>Daily Log</h2>
-      <div id="logInputs"></div>
+      <div class="row">
+        <label class="inline">
+          Date
+          <input id="entryDate" type="date"/>
+        </label>
+      </div>
+
+      <div id="logInputs" class="grid"></div>
+
+      <div class="divider"></div>
+
       <h3>Custom Category</h3>
-      <input id="customLabel" placeholder="Label" />
-      <input id="customHours" type="number" placeholder="Hours" />
-      <h3 id="dailyTotal">Total: 0h</h3>
-      <button id="submitDay">Submit Day</button>
+      <div class="row">
+        <input id="customLabel" placeholder="Label (e.g., Social Media)"/>
+        <input id="customHours" type="number" min="0" step="0.25" placeholder="Hours"/>
+      </div>
+
+      <div class="totalbar">
+        <span id="dailyTotal">Total: 0h</span>
+        <button id="submitDay" class="primary">Submit Day</button>
+      </div>
+
+      <div id="saveToast" class="toast hidden">Saved ✓</div>
     </section>
 
-    <!-- History Tab -->
-    <section id="history" class="tab hidden">
+    <!-- HISTORY -->
+    <section id="history" class="card hidden">
       <h2>Log History</h2>
+      <p class="muted">Raw data from localStorage (read-only):</p>
       <pre id="historyOutput"></pre>
       <button id="refreshHistory">Refresh</button>
     </section>
 
-    <!-- Viz Tab -->
-    <section id="viz" class="tab hidden">
+    <!-- VIZ -->
+    <section id="viz" class="card hidden">
       <h2>Data Visualization</h2>
-      <div class="viz-controls">
-        <label><input type="radio" name="vizMode" value="total" checked /> Total Hours</label>
-        <label><input type="radio" name="vizMode" value="category" /> By Category</label>
+      <div class="segmented">
+        <label>
+          <input type="radio" name="vizMode" value="total" checked/>
+          <span>Total Hours</span>
+        </label>
+        <label>
+          <input type="radio" name="vizMode" value="category"/>
+          <span>By Category</span>
+        </label>
       </div>
-      <canvas id="chart" width="400" height="200"></canvas>
-      <button id="refreshViz">Refresh</button>
+      <canvas id="chart" height="240"></canvas>
+      <div class="row-right">
+        <button id="refreshViz">Refresh</button>
+      </div>
+    </section>
+
+    <!-- CONFIG -->
+    <section id="config" class="card hidden">
+      <h2>Default Categories</h2>
+      <p class="muted">Rename, reorder, or remove. Click “Save Config” to persist.</p>
+      <ul id="categoryList" class="catlist"></ul>
+
+      <div class="row">
+        <input id="newCategory" placeholder="Add new category"/>
+        <button id="addCategory">Add</button>
+      </div>
+
+      <div class="row-right">
+        <button id="saveConfig" class="primary">Save Config</button>
+      </div>
     </section>
   </div>
+
   <script src="script.js"></script>
 </body>
 </html>
