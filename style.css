@@ -1,43 +1,93 @@
+:root {
+  --bg: #f9fafb;
+  --fg: #222;
+  --accent: #0077ff;
+  --muted: #666;
+  --card: #fff;
+  --border: #ddd;
+}
+
 body {
-  font-family: system-ui, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--fg);
   margin: 0;
   padding: 0;
-  background: #f7f7f7;
 }
 
 nav {
   display: flex;
-  background: #222;
+  background: var(--card);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 nav button {
   flex: 1;
   padding: 1em;
   background: none;
-  color: white;
   border: none;
   cursor: pointer;
+  color: var(--muted);
+  font-weight: 500;
+  transition: all 0.2s ease;
 }
 
-nav button:hover {
-  background: #444;
+nav button:hover, nav button.active {
+  color: var(--accent);
+  background: rgba(0,119,255,0.05);
 }
 
 section {
-  padding: 1em;
+  max-width: 600px;
+  margin: 2em auto;
+  padding: 2em;
+  background: var(--card);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+input {
+  width: 100%;
+  padding: 0.5em;
+  margin: 0.25em 0 0.5em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1em;
+}
+
+button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  cursor: pointer;
+  margin-top: 0.5em;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: #005fd1;
 }
 
 .hidden {
   display: none;
 }
 
-input {
-  margin: 0.25em 0;
-  padding: 0.4em;
+.viz-controls {
+  display: flex;
+  gap: 1em;
+  margin-bottom: 1em;
 }
 
-button {
-  margin-top: 0.5em;
-  padding: 0.5em 1em;
-  cursor: pointer;
+pre {
+  background: #f3f4f6;
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
 }
