@@ -6,15 +6,12 @@ const today = new Date().toISOString().split('T')[0];
 function loadConfig() {
   return JSON.parse(localStorage.getItem('config') || '{"categories":["Work (client)","Work (personal)","Exercise","Reading","TV"]}');
 }
-
 function saveConfig(config) {
   localStorage.setItem('config', JSON.stringify(config));
 }
-
 function loadLogs() {
   return JSON.parse(localStorage.getItem('timeLog') || '[]');
 }
-
 function saveLogs(logs) {
   localStorage.setItem('timeLog', JSON.stringify(logs));
 }
@@ -70,9 +67,30 @@ function renderLogInputs() {
   container.innerHTML = '';
   config.categories.forEach(cat => {
     const div = document.createElement('div');
-    div.innerHTML = `<label>${cat}: <input type="number" id="hours_${cat}" min="0" step="0.25" /></label>`;
+    div.innerHTML = `<label>${cat}: <input type="number" id="hours_${cat}" min="0" step="0.25" class="hourInput" /></label>`;
     container.appendChild(div);
   });
+  addLiveTotalListener();
+}
+
+// Add live total display
+const totalDisplay = document.createElement('h3');
+totalDisplay.id = 'dailyTotal';
+totalDisplay.textContent = 'Total: 0h';
+$('log').insertBefore(totalDisplay, $('customLabel'));
+
+function addLiveTotalListener() {
+  const updateTotal = () => {
+    let total = 0;
+    document.querySelectorAll('.hourInput').forEach(inp => {
+      total += parseFloat(inp.value) || 0;
+    });
+    total += parseFloat($('customHours').value) || 0;
+    $('dailyTotal').textContent = `Total: ${total.toFixed(2)}h`;
+  };
+  document.querySelectorAll('.hourInput').forEach(inp => inp.addEventListener('input', updateTotal));
+  $('customHours').addEventListener('input', updateTotal);
+  $('customLabel').addEventListener('input', updateTotal);
 }
 
 $('submitDay').onclick = async () => {
