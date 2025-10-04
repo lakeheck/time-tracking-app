@@ -241,6 +241,38 @@ document.querySelectorAll('input[name="vizMode"]').forEach(r=>r.addEventListener
 // ---------- misc ----------
 function toast(text){const t=$("saveToast");t.textContent=text;t.classList.remove("hidden");setTimeout(()=>t.classList.add("hidden"),1400);}
 
+
+// ---------- CSV EXPORT ----------
+function downloadAllDataAsCSV() {
+  const logs = loadLogs();
+  if (!logs.length) {
+    alert("No data to export yet.");
+    return;
+  }
+
+  // Flatten logs into CSV rows
+  const rows = [];
+  rows.push(["Date", "Category", "Hours"]); // header
+  logs.forEach(l => {
+    l.entries.forEach(e => {
+      rows.push([l.date, e.label, e.hours]);
+    });
+  });
+
+  // Build CSV string
+  const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", "time_log.csv");
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+$("downloadCSV").onclick = downloadAllDataAsCSV;
+
 // ---------- INIT ----------
 window.addEventListener("DOMContentLoaded", async ()=>{
   renderConfig(); renderLogInputs(); renderHistory();
