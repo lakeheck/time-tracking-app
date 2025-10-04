@@ -1,6 +1,6 @@
 // ---------- helpers & storage ----------
 const $ = (id) => document.getElementById(id);
-const todayStr = () => new Date().toISOString().split('T')[0];
+const todayStr = () => new Date().toISOString().split("T")[0];
 
 function loadConfig() {
   return JSON.parse(
@@ -18,7 +18,23 @@ function saveLogs(l) {
   localStorage.setItem("timeLog", JSON.stringify(l));
 }
 
-// ---------- cloud sync ----------
+// ---------- sync indicator ----------
+function setSyncStatus(status) {
+  const el = $("syncStatus");
+  if (!el) return;
+  if (status === "synced") {
+    el.textContent = "✓ Synced";
+    el.className = "syncstatus synced";
+  } else if (status === "offline") {
+    el.textContent = "⚠️ Offline";
+    el.className = "syncstatus offline";
+  } else {
+    el.textContent = "⏳ Syncing...";
+    el.className = "syncstatus";
+  }
+}
+
+// ---------- cloud sync: logs ----------
 async function pushToCloud(entry) {
   try {
     await fetch("/.netlify/functions/pushEntry", {
@@ -26,8 +42,10 @@ async function pushToCloud(entry) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(entry),
     });
+    setSyncStatus("synced");
   } catch (err) {
     console.warn("Cloud push failed:", err);
+    setSyncStatus("offline");
   }
 }
 
@@ -36,15 +54,49 @@ async function fetchFromCloud() {
     const res = await fetch("/.netlify/functions/fetchLogs");
     const data = await res.json();
     if (Array.isArray(data)) saveLogs(data);
+    setSyncStatus("synced");
     return data;
   } catch (err) {
     console.warn("Cloud fetch failed:", err);
+    setSyncStatus("offline");
     return loadLogs();
   }
 }
 
+// ---------- cloud sync: config ----------
+async function fetchCloudConfig() {
+  try {
+    const res = await fetch("/.netlify/functions/config");
+    const data = await res.json();
+    if (data && Array.isArray(data.categories)) {
+      localStorage.setItem("config", JSON.stringify(data));
+      console.log("Fetched config from cloud:", data.categories);
+      setSyncStatus("synced");
+      return data;
+    }
+  } catch (err) {
+    console.warn("Cloud config fetch failed:", err);
+    setSyncStatus("offline");
+  }
+  return loadConfig();
+}
+
+async function pushCloudConfig(categories) {
+  try {
+    await fetch("/.netlify/functions/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categories }),
+    });
+    setSyncStatus("synced");
+  } catch (err) {
+    console.warn("Cloud config push failed:", err);
+    setSyncStatus("offline");
+  }
+}
+
 // ---------- app state ----------
-let config = loadConfig();
+let config;
 let chartRef = null;
 
 // ---------- tabs ----------
@@ -74,37 +126,14 @@ function renderConfig() {
   ul.innerHTML = "";
   config.categories.forEach((cat, i) => {
     const li = document.createElement("li");
+    li.draggable = true;
+    li.classList.add("draggable-item");
+
     const inp = document.createElement("input");
     inp.type = "text";
     inp.value = cat;
     inp.oninput = (e) => {
       config.categories[i] = e.target.value;
-    };
-
-    const up = document.createElement("button");
-    up.textContent = "↑";
-    up.className = "iconbtn";
-    up.onclick = () => {
-      if (i > 0) {
-        [config.categories[i - 1], config.categories[i]] = [
-          config.categories[i],
-          config.categories[i - 1],
-        ];
-        renderConfig();
-      }
-    };
-
-    const down = document.createElement("button");
-    down.textContent = "↓";
-    down.className = "iconbtn";
-    down.onclick = () => {
-      if (i < config.categories.length - 1) {
-        [config.categories[i + 1], config.categories[i]] = [
-          config.categories[i],
-          config.categories[i + 1],
-        ];
-        renderConfig();
-      }
     };
 
     const del = document.createElement("button");
@@ -116,13 +145,52 @@ function renderConfig() {
     };
 
     li.appendChild(inp);
-    li.appendChild(up);
-    li.appendChild(down);
     li.appendChild(del);
     ul.appendChild(li);
+
+    // drag logic
+    li.addEventListener("dragstart", () => {
+      li.classList.add("dragging");
+    });
+    li.addEventListener("dragend", () => {
+      li.classList.remove("dragging");
+      const newOrder = Array.from(ul.querySelectorAll("li input")).map(
+        (el) => el.value
+      );
+      config.categories = newOrder;
+      saveConfig(config);
+      pushCloudConfig(config.categories);
+    });
+  });
+
+  // handle drag-over
+  ul.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const dragging = ul.querySelector(".dragging");
+    const afterElement = getDragAfterElement(ul, e.clientY);
+    if (afterElement == null) {
+      ul.appendChild(dragging);
+    } else {
+      ul.insertBefore(dragging, afterElement);
+    }
   });
 }
-renderConfig();
+
+function getDragAfterElement(container, y) {
+  const els = [...container.querySelectorAll(".draggable-item:not(.dragging)")];
+  return els.reduce(
+    (closest, child) => {
+      const box = child.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > closest.offset) {
+        return { offset, element: child };
+      } else {
+        return closest;
+      }
+    },
+    { offset: Number.NEGATIVE_INFINITY }
+  ).element;
+}
 
 $("addCategory").onclick = () => {
   const v = $("newCategory").value.trim();
@@ -131,9 +199,11 @@ $("addCategory").onclick = () => {
   $("newCategory").value = "";
   renderConfig();
 };
+
 $("saveConfig").onclick = () => {
   config.categories = config.categories.map((c) => c.trim()).filter(Boolean);
   saveConfig(config);
+  pushCloudConfig(config.categories);
   if (!$("log").classList.contains("hidden")) renderLogInputs();
   toast("Config saved ✓");
 };
@@ -286,6 +356,13 @@ function renderChart() {
 
 // ---------- initial sync ----------
 window.addEventListener("DOMContentLoaded", async () => {
+  setSyncStatus("syncing");
+  config = await fetchCloudConfig();
+  if (!config || !config.categories) config = loadConfig();
+
+  renderConfig();
+  renderLogInputs();
+
   const cloudLogs = await fetchFromCloud();
   console.log("Synced", cloudLogs?.length || 0, "entries from cloud");
 });
