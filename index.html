@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Time Tracker</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div id="app">
+    <nav>
+      <button data-tab="config">⚙️ Config</button>
+      <button data-tab="log">🕒 Log</button>
+      <button data-tab="viz">📈 Viz</button>
+    </nav>
+
+    <!-- Config Tab -->
+    <section id="config" class="tab">
+      <h2>Default Categories</h2>
+      <ul id="categoryList"></ul>
+      <input id="newCategory" placeholder="Add new category" />
+      <button id="addCategory">Add</button>
+      <button id="saveConfig">Save Config</button>
+    </section>
+
+    <!-- Log Tab -->
+    <section id="log" class="tab hidden">
+      <h2>Daily Log</h2>
+      <div id="logInputs"></div>
+      <h3>Custom Category</h3>
+      <input id="customLabel" placeholder="Label" />
+      <input id="customHours" type="number" placeholder="Hours" />
+      <button id="submitDay">Submit Day</button>
+    </section>
+
+    <!-- Viz Tab -->
+    <section id="viz" class="tab hidden">
+      <h2>Data Visualization</h2>
+      <canvas id="chart" width="400" height="200"></canvas>
+      <button id="refreshViz">Refresh</button>
+    </section>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
