@@ -12,11 +12,12 @@
     <nav>
       <button data-tab="config">⚙️ Config</button>
       <button data-tab="log">🕒 Log</button>
+      <button data-tab="history">📜 History</button>
       <button data-tab="viz">📈 Viz</button>
     </nav>
 
     <!-- Config Tab -->
-    <section id="config" class="tab">
+    <section id="config" class="tab hidden">
       <h2>Default Categories</h2>
       <ul id="categoryList"></ul>
       <input id="newCategory" placeholder="Add new category" />
@@ -25,18 +26,30 @@
     </section>
 
     <!-- Log Tab -->
-    <section id="log" class="tab hidden">
+    <section id="log" class="tab">
       <h2>Daily Log</h2>
       <div id="logInputs"></div>
       <h3>Custom Category</h3>
       <input id="customLabel" placeholder="Label" />
       <input id="customHours" type="number" placeholder="Hours" />
+      <h3 id="dailyTotal">Total: 0h</h3>
       <button id="submitDay">Submit Day</button>
+    </section>
+
+    <!-- History Tab -->
+    <section id="history" class="tab hidden">
+      <h2>Log History</h2>
+      <pre id="historyOutput"></pre>
+      <button id="refreshHistory">Refresh</button>
     </section>
 
     <!-- Viz Tab -->
     <section id="viz" class="tab hidden">
       <h2>Data Visualization</h2>
+      <div class="viz-controls">
+        <label><input type="radio" name="vizMode" value="total" checked /> Total Hours</label>
+        <label><input type="radio" name="vizMode" value="category" /> By Category</label>
+      </div>
       <canvas id="chart" width="400" height="200"></canvas>
       <button id="refreshViz">Refresh</button>
     </section>
